@@ -1,0 +1,203 @@
+#!/bin/sh
+# chkconfig:         2345 75 15
+# description:       atom
+### BEGIN INIT INFO
+# Provides:          atom
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Atom
+### END INIT INFO
+
+# Uncomment the following line to add additional VM parameters
+# INSTALL4J_ADD_VM_PARAMS=
+
+
+add_class_path() {
+  if [ -n "$1" ] && [ `expr "$1" : '.*\*'` -eq "0" ]; then
+    local_classpath="$local_classpath${local_classpath:+:}$1"
+  fi
+}
+
+compiz_workaround() {
+  osname=`uname -s`
+  if [ "$osname" = "Linux" ]; then
+    compiz=`ps -ef | grep -v grep | grep compiz`
+    if [ -n "$compiz" ]; then
+      export AWT_TOOLKIT=MToolkit
+    fi
+  fi
+}
+
+read_vmoptions() {
+  vmoptions_file=`eval echo "$1" 2>/dev/null`
+  if [ ! -r "$vmoptions_file" ]; then
+    vmoptions_file="$prg_dir/$vmoptions_file"
+  fi
+  if [ -r "$vmoptions_file" ] && [ -f "$vmoptions_file" ]; then
+    exec 8< "$vmoptions_file"
+    while read cur_option<&8; do
+      is_comment=`expr "W$cur_option" : 'W *#.*'`
+      if [ "$is_comment" = "0" ]; then
+        vmo_classpath=`expr "W$cur_option" : 'W *-classpath \(.*\)'`
+        vmo_classpath_a=`expr "W$cur_option" : 'W *-classpath/a \(.*\)'`
+        vmo_classpath_p=`expr "W$cur_option" : 'W *-classpath/p \(.*\)'`
+        vmo_include=`expr "W$cur_option" : 'W *-include-options \(.*\)'`
+        if [ ! "$vmo_classpath" = "" ]; then
+          local_classpath="$i4j_classpath:$vmo_classpath"
+        elif [ ! "$vmo_classpath_a" = "" ]; then
+          local_classpath="${local_classpath}:${vmo_classpath_a}"
+        elif [ ! "$vmo_classpath_p" = "" ]; then
+          local_classpath="${vmo_classpath_p}:${local_classpath}"
+        elif [ "$vmo_include" = "" ]; then
+          needs_quotes=`expr "W$cur_option" : 'W.* .*'`
+          if [ "$needs_quotes" = "0" ]; then
+            vmoptions_val="$vmoptions_val $cur_option"
+
+          else
+            if [ "W$vmov_1" = "W" ]; then
+              vmov_1="$cur_option"
+            elif [ "W$vmov_2" = "W" ]; then
+              vmov_2="$cur_option"
+            elif [ "W$vmov_3" = "W" ]; then
+              vmov_3="$cur_option"
+            elif [ "W$vmov_4" = "W" ]; then
+              vmov_4="$cur_option"
+            elif [ "W$vmov_5" = "W" ]; then
+              vmov_5="$cur_option"
+            fi
+          fi
+        fi
+      fi
+    done
+    exec 8<&-
+    if [ ! "$vmo_include" = "" ]; then
+      read_vmoptions "$vmo_include"
+    fi
+  fi
+}
+
+
+old_pwd=`pwd`
+progname=`basename "$0"`
+linkdir=`dirname "$0"`
+cd "$linkdir"
+prg="$progname"
+
+while [ -h "$prg" ] ; do
+  ls=`ls -ld "$prg"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '.*/.*' > /dev/null; then
+    prg="$link"
+  else
+    prg="`dirname $prg`/$link"
+  fi
+done
+
+prg_dir=`dirname "$prg"`
+progname=`basename "$prg"`
+cd "$prg_dir"
+prg_dir=`pwd`
+app_home=../
+cd "$app_home"
+app_home=`pwd`
+
+if [ "__i4j_lang_restart" = "$1" ]; then
+  cd "$old_pwd"
+else
+cd "$prg_dir"/../
+
+fi
+if [ "__i4j_extract_and_exit" = "$1" ]; then
+  cd "$old_pwd"
+  exit 0
+fi
+
+####Add this line to ensure this script knows where and what version of JAVA we're running!
+app_java_home=$JAVA_HOME
+
+compiz_workaround
+i4j_classpath="$app_home/.install4j/i4jruntime.jar"
+local_classpath=""
+add_class_path "$i4j_classpath"
+add_class_path "$app_home/lib/container-launcher.jar"
+
+vmoptions_val=""
+read_vmoptions "$prg_dir/$progname.vmoptions"
+INSTALL4J_ADD_VM_PARAMS="$INSTALL4J_ADD_VM_PARAMS $vmoptions_val"
+
+INSTALL4J_ADD_VM_PARAMS="$INSTALL4J_ADD_VM_PARAMS -Di4j.vpt=true"
+for param in $@; do
+  if [ `echo "W$param" | cut -c -3` = "W-J" ]; then
+    INSTALL4J_ADD_VM_PARAMS="$INSTALL4J_ADD_VM_PARAMS `echo "$param" | cut -c 3-`"
+  fi
+done
+
+if [ "W$vmov_1" = "W" ]; then
+  vmov_1="-Di4jv=0"
+fi
+if [ "W$vmov_2" = "W" ]; then
+  vmov_2="-Di4jv=0"
+fi
+if [ "W$vmov_3" = "W" ]; then
+  vmov_3="-Di4jv=0"
+fi
+if [ "W$vmov_4" = "W" ]; then
+  vmov_4="-Di4jv=0"
+fi
+if [ "W$vmov_5" = "W" ]; then
+  vmov_5="-Di4jv=0"
+fi
+
+case "$1" in
+    start)
+        echo "Starting atom"
+    nohup "$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" "-Dinstall4j.launcherId=33" "-Dinstall4j.swt=false" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher start 99a99d01 "$prg_dir/error.log" "$prg_dir/output.log" com.boomi.launcher.Launcher com.boomi.container.core.Container lib work $EXTRA_OPTIONS > /dev/null 2>&1 &
+
+    ;;
+    start-launchd)
+        echo "Starting atom"
+    "$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" "-Dinstall4j.launcherId=33" "-Dinstall4j.swt=false" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher start 99a99d01 "$prg_dir/error.log" "$prg_dir/output.log" com.boomi.launcher.Launcher com.boomi.container.core.Container lib work $EXTRA_OPTIONS
+
+    ;;
+    stop)
+        echo "Shutting down atom"
+"$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher stop
+
+
+    ;;
+    restart|force-reload)
+        echo "Shutting down atom"
+"$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher stop
+
+
+        echo "Restarting atom"
+    nohup "$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" "-Dinstall4j.launcherId=33" "-Dinstall4j.swt=false" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher start 99a99d01 "$prg_dir/error.log" "$prg_dir/output.log" com.boomi.launcher.Launcher com.boomi.container.core.Container lib work $EXTRA_OPTIONS > /dev/null 2>&1 &
+
+
+    ;;
+    status)
+"$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher status
+
+
+    ;;
+    run)
+    "$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" "-Dinstall4j.launcherId=33" "-Dinstall4j.swt=false" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher run 99a99d01 "$prg_dir/error.log" "$prg_dir/output.log" com.boomi.launcher.Launcher com.boomi.container.core.Container lib work -$EXTRA_OPTIONS
+
+
+    ;;
+    run-redirect)
+    "$app_java_home/bin/java" -Dinstall4j.jvmDir="$app_java_home" -Dexe4j.moduleName="$prg_dir/$progname" "-Dinstall4j.launcherId=33" "-Dinstall4j.swt=false" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" com.install4j.runtime.launcher.UnixLauncher run-redirect 99a99d01 "$prg_dir/error.log" "$prg_dir/output.log" com.boomi.launcher.Launcher com.boomi.container.core.Container lib work $EXTRA_OPTIONS
+
+    ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart|force-reload}"
+        exit 1
+    ;;
+esac
+
+exit $?
+
+
+
