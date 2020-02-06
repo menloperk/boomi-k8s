@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atom-deployment
+  labels:
+    app: atom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atom
+  template:
+    metadata:
+      labels:
+        app: atom
+    spec:
+      containers:
+      - name: atom-container
+        image: menloperk/atom:1.0.5
+        resources:
+          limits:
+            cpu: 3
+          requests:
+            cpu: 1
+        volumeMounts:
+        - mountPath: /var/boomi
+          name: atom-volume
+        # Just spin & wait forever
+        command: ["/bin/bash", "-ec", "/home/boomi/startatom.sh; while true; do sleep 30; done;"]
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9090
+        env:
+        - name: URL
+          value: https://platform.boomi.com
+        - name: ATOM_HOME
+          value: /var/boomi/Atom_Pod
+        - name: BOOMI_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_USERNAME
+        - name: BOOMI_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_PASSWORD
+        - name: BOOMI_ATOMNAME
+          value: Pod
+        - name: BOOMI_CONTAINERNAME
+          value: Pod
+        - name: BOOMI_ACCOUNTID
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_ACCOUNTID
+        - name: INSTALLATION_DIRECTORY
+          value: /var/boomi
+        - name: ATOM_LOCALHOSTID
+          value: Atom
+        - name: DIRNAME
+          value: Pod
+      volumes:
+      - name: atom-volume
+        hostPath:
+          path: /var/boomi
+          type: DirectoryOrCreate
+      - name: atom-home
+        hostPath:
+          path: /var/boomi/Atom_Pod/bin
+          type: DirectoryOrCreate

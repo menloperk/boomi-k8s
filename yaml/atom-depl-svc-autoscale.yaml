@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atom-deployment
+  labels:
+    app: atom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atom
+  template:
+    metadata:
+      labels:
+        app: atom
+    spec:
+      containers:
+      - name: atom-container
+        image: menloperk/atom:1.0.15
+        resources:
+          limits:
+            cpu: 3
+          requests:
+            cpu: 1
+        volumeMounts:
+        - mountPath: /var/boomi
+          name: atom-volume
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9090
+        lifecycle:
+          preStop:
+            exec:
+#              command: ["/bin/bash", "-ec", "atom stop; /sbin/setuser boomi /home/boomi/deleteatom.sh; rm -rf /var/boomi"]
+              command: ["/bin/bash", "-ec", "atom stop; /sbin/setuser boomi /home/boomi/detachatom.sh"]
+        env:
+        - name: URL
+          value: https://platform.boomi.com
+        - name: BOOMI_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_USERNAME
+        - name: BOOMI_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_PASSWORD
+        - name: BOOMI_ACCOUNTID
+          valueFrom:
+            secretKeyRef:
+              name: boomicreds
+              key: BOOMI_ACCOUNTID
+        - name: BOOMI_ATOMNAME
+          value: Pod
+        - name: BOOMI_CONTAINERNAME
+#          value: $(BOOMI_ATOMNAME)
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: ATOM_LOCALHOSTID
+          value: $(BOOMI_ATOMNAME)
+        - name: INSTALLATION_DIRECTORY
+          value: /var/boomi
+        - name: ENVIRONMENT_ID
+          value: f00a465c-ed3f-468c-abda-b52e60860524
+      volumes:
+      - name: atom-volume
+        hostPath:
+          path: /var/boomi
+          type: DirectoryOrCreate
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: atom-service
+spec:
+  selector:
+    app: atom
+  ports:
+  - name: http
+    protocol: TCP
+    port: 9090
+    targetPort: 9090
+  externalIPs:
+  - 192.168.1.200
